@@ -448,3 +448,4 @@ Burstable, Guaranteed и BestEffort – это три класса QoS, кото
 ```
 kubectl get pods -n qos -o yaml -  вернет класс в поле status определения модуля Pod - qosClass: Burstable
 ```
+# Интерфейсы CNI и настройка сети в модулях Pod

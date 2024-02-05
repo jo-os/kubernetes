@@ -122,6 +122,7 @@ kubectl delete replicaset nginx --cascade=false - удаляет replicaset но
 ```
 4
 ```yml
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: app-deployment
@@ -178,4 +179,64 @@ kubectl get daemonset
 kubectl get nodes --show-labels
 kubectl label node node9 env=dev # задать метку поду
 kubectl label node node9 env=prod --overwrite # перезапишем метку
+```
+5
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: MyApp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetport: 9376
+```
+```yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: server
+        image: nginx:1.20
+        ports: 
+        - containerPort: 80
+```
+```
+kubectl create -f nginx-deployment.yml
+kubectl get po -o wide
+kubectl expose deployment nginx-deployment --port 80 --target-port 80
+kubectl get services
+kubectl describe service nginx-deployment
+kubectl get endpoints
+kubectl describe endpoints nginx-deployment
+kubectl run tmp-pod --rm -i --tty --image nicolaka/netshoot -- /bin/bash # одиночный под для проверок
+curl http://nginx-deployment
+kubectl delete service nginx-deployment
+```
+dnsPolicy:
+- Default - наследует настройкм с ноды на которой запушен
+- ClusterFirst - по умолчанию - все днс запросы которые не совпадают с кластер днс суффикс перенаправляются на upstreamDNS сервер, адрес которого наследуется с ноды
+- ClusterFirstWithHostNet - для подов который запушены с параметром HostNetwork
+- None - можно прописать настройки днс в спецификации пода
+```
+cat /etc/resolv.conf
+search default.svc.cluster.local svc.cluster.local cluster.local
+в одном namespace default:
+curl http://nginx-deployment
+curl http://nginx-deployment.default
+curl http://nginx-deployment.default.svc.cluster.local
 ```

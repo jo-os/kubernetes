@@ -260,3 +260,86 @@ curl http://nginx-deployment
 curl http://nginx-deployment.default
 curl http://nginx-deployment.default.svc.cluster.local
 ```
+6
+<details>
+  <summary>Job</summary>
+  
+```yml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  completions: 5
+  parallelism: 5
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl","-Mbignum=bpi","-wle","print bpi(2000)"]
+      restartPolicy: Never
+      activeDeadlineSeconds: 100
+  backoffLimit: 4
+```
+</details>
+
+```
+kubectl get jobs
+kubectl get pods - смотрим STATUS
+```
+<details>
+  <summary>CronJob</summary>
+  
+```yml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hello
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: hello
+            image: busybox
+            command:
+            - /bin/sh
+            - -c
+            - date; echi Hello from Kube cluster
+```
+</details>
+
+```
+kubectl get cronjob
+kubectl get pods
+kubectl logs {pod-name}
+```
+<details>
+  <summary>Init</summary>
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+spec:
+  initContainers:
+  - name: init-db
+    image: busybox:1.28
+    command: ['sh','-c',"until nslookup mydb.default.svc.cluster.local; do echo waiting for mydb; sleep 2; done"]
+  containers:
+  - name: myapp-container
+    image: busybox:1.28
+    command: ['sh','-c','echo The app is running! && sleep 3600']
+```
+</details>
+
+```
+kubectl logs myapp-pod -c init-db
+kubectl get event --field-selector involvedObject.name=myapp-pod --watch
+kubectl create service clusterip mydb --tcp=5432:5432 - сервис для бд
+```

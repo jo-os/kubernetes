@@ -343,3 +343,48 @@ kubectl logs myapp-pod -c init-db
 kubectl get event --field-selector involvedObject.name=myapp-pod --watch
 kubectl create service clusterip mydb --tcp=5432:5432 - сервис для бд
 ```
+7
+
+**Admission Controller**
+- InitialResources - устанавливает лимиты по умолчанию для ресурсов
+- LimitRanger - устанавливает лимиты по умолчанию для запросов и лимитов контейнера
+- ResourceQuota - считает количество объектов и общие потребляемые ресурсы и предотвращает их превышение
+
+**Webhooks**
+- MutatingAdmissionWebhook - модифицирует запрос
+- ValidatingAdmissionWebhook - валидирует запрос
+
+```
+
+```
+8
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: envar-demo
+  labels:
+    purpose: demonstrate-envars
+spec:
+  containers:
+  - name: envar-demo-container
+    image: gcr.io/google-samples/node-hello:1.0
+    env:
+    - name: DEMO_GREETING
+      value: "Hi all!"
+```
+```
+kubectl exec envar-demo -- printenv
+```
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-app-config
+data:
+  DRIVER_ADDR: "https://payment.prod.env:8080"
+  JWT_ISSUER: "team.prod.env"
+```
+```
+kubectl describe configmaps demo-app-config
+```

@@ -72,6 +72,9 @@ kubectl get po -l cluster=prod
 kubectl get po -l app!=nginx,cluster=prod
 kubectl delete pods -l cluster=prod
 ```
+<details>
+  <summary>Replicaset</summary>
+  
 ```yml
 apiVersion: apps/v1
 kind: ReplicaSet
@@ -94,6 +97,8 @@ spec:
       - name: nginx
         image: nginx
 ```
+</details>
+
 ```
 kubectl create -f rs.yml
 kubectl get replicaset
@@ -121,6 +126,9 @@ spec:
 kubectl delete replicaset nginx --cascade=false - удаляет replicaset но оставляет поды
 ```
 4
+<details>
+  <summary>Deployment</summary>
+  
 ```yml
 apiVersion: apps/v1
 kind: Deployment
@@ -145,6 +153,8 @@ spec:
       - name: nginx
         image: nginx:1.14.2
 ```
+</details>
+
 ```
 kubectl get deployment
 kubectl rollout status deployment app-deployment
@@ -153,6 +163,9 @@ kubectl rollout undo deployment app-deployment
 kubectl rollout history deployment app-deployment
 kubectl rollout undo deployment app-deployment --to-revision=1
 ```
+<details>
+  <summary>DaemonSet</summary>
+  
 ```yml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -173,6 +186,8 @@ spec:
       - name: fluentd-elasticsearch
         image: quay.io/fluentd_elasticsearch/fluentd:v2.5.2
 ```
+</details>
+
 ```
 kubectl get daemonset
 
@@ -194,6 +209,9 @@ spec:
       port: 80
       targetport: 9376
 ```
+<details>
+  <summary>Deployment</summary>
+  
 ```yml
 apiVersion: apps/v1
 kind: Deployment
@@ -215,6 +233,8 @@ spec:
         ports: 
         - containerPort: 80
 ```
+</details>
+
 ```
 kubectl create -f nginx-deployment.yml
 kubectl get po -o wide

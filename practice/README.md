@@ -388,3 +388,74 @@ data:
 ```
 kubectl describe configmaps demo-app-config
 ```
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-app
+spec:
+  containers:
+    - name: demo-app
+      image: gcr.io/google-samples/node-hello:1.0
+      envFrom:
+      - configMapRef:
+          name: demo-app-config
+      env:
+        - name: JWT_ISSUER_SECOND
+          valueFrom:
+            configMapKeyRef:
+              name: demo-app-config
+              key: JWT_ISSUER
+```
+```
+kubectl exec demo-app -- printenv
+```
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-app-config
+data:
+  DRIVER_ADDR: "https://payment.test.env:8080"
+  JWT_ISSUER: "team.test.env"
+```
+```
+kubectl create namespace test
+kubectl create -f cm-test.yml -n test
+kubectl describe configmap demo-app-config -n test
+```
+```yml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysecret
+type: Opaque
+data:
+  username: YWRtaW4K
+  password: dmVyeS1zZWMtcGFzc3dvcmQK
+```
+```
+kubectl get secret
+kubectl describe secret mysecret
+kubectl create secret generic user-creds --from-file=./username.txt --from-file=./password.txt
+kubectl describe secret user-creds
+```
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secret-pod
+spec:
+  containers:
+  - name: sec-app
+    image: gcr.io/google-samples/node-hello:1.0
+    envFrom:
+      - secretRef:
+          name: mysecret
+      - secretRef:
+          name: user-creds
+```
+```
+kubectl exec -it secret-pod -- printenv
+```
+

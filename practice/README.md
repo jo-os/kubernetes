@@ -196,6 +196,9 @@ kubectl label node node9 env=dev # задать метку поду
 kubectl label node node9 env=prod --overwrite # перезапишем метку
 ```
 5
+<details>
+  <summary>Service</summary>
+  
 ```yml
 apiVersion: v1
 kind: Service
@@ -209,6 +212,8 @@ spec:
       port: 80
       targetport: 9376
 ```
+</details>
+  
 <details>
   <summary>Deployment</summary>
   
@@ -358,6 +363,9 @@ kubectl create service clusterip mydb --tcp=5432:5432 - сервис для бд
 
 ```
 8
+<details>
+  <summary>Env in Pod</summary>
+  
 ```yml
 apiVersion: v1
 kind: Pod
@@ -373,9 +381,14 @@ spec:
     - name: DEMO_GREETING
       value: "Hi all!"
 ```
+</details>
+
 ```
 kubectl exec envar-demo -- printenv
 ```
+<details>
+  <summary>ConfigMap</summary>
+  
 ```yml
 apiVersion: v1
 kind: ConfigMap
@@ -385,9 +398,14 @@ data:
   DRIVER_ADDR: "https://payment.prod.env:8080"
   JWT_ISSUER: "team.prod.env"
 ```
+</details>
+
 ```
 kubectl describe configmaps demo-app-config
 ```
+<details>
+  <summary>Pod+ConfigMap</summary>
+  
 ```yml
 apiVersion: v1
 kind: Pod
@@ -407,9 +425,14 @@ spec:
               name: demo-app-config
               key: JWT_ISSUER
 ```
+</details>
+
 ```
 kubectl exec demo-app -- printenv
 ```
+<details>
+  <summary>ConfigMap</summary>
+  
 ```yml
 apiVersion: v1
 kind: ConfigMap
@@ -419,11 +442,16 @@ data:
   DRIVER_ADDR: "https://payment.test.env:8080"
   JWT_ISSUER: "team.test.env"
 ```
+</details>
+
 ```
 kubectl create namespace test
 kubectl create -f cm-test.yml -n test
 kubectl describe configmap demo-app-config -n test
 ```
+<details>
+  <summary>Secret</summary>
+  
 ```yml
 apiVersion: v1
 kind: Secret
@@ -434,12 +462,17 @@ data:
   username: YWRtaW4K
   password: dmVyeS1zZWMtcGFzc3dvcmQK
 ```
+</details>
+
 ```
 kubectl get secret
 kubectl describe secret mysecret
 kubectl create secret generic user-creds --from-file=./username.txt --from-file=./password.txt
 kubectl describe secret user-creds
 ```
+<details>
+  <summary>Pod+Secret</summary>
+  
 ```yml
 apiVersion: v1
 kind: Pod
@@ -455,6 +488,8 @@ spec:
       - secretRef:
           name: user-creds
 ```
+</details>
+
 ```
 kubectl exec -it secret-pod -- printenv
 ```

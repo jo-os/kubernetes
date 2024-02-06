@@ -431,7 +431,7 @@ spec:
 kubectl exec demo-app -- printenv
 ```
 <details>
-  <summary>ConfigMap</summary>
+  <summary>ConfigMap 2</summary>
   
 ```yml
 apiVersion: v1

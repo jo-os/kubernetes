@@ -493,4 +493,145 @@ spec:
 ```
 kubectl exec -it secret-pod -- printenv
 ```
+9
+Контроль доступа
+- Аутентификация - кто?
+- Авторизация - что можно?
+- Admission Control - можно изменить или отклонить запрос
 
+ServiceAccount - для служб и общения внутри кластера, по умолчанию default - но у default мало прав
+```
+kubectl get pod coredns-69db55dd76-mqbdt -n kube-system -o json
+        "serviceAccount": "coredns",
+        "serviceAccountName": "coredns",
+kubectl get serviceaccount coredns -n kube-system -o json
+kubectl config view
+```
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  namespace: kube-system
+spec:
+  containers:
+  - image: nginx
+    name: nginx
+  serviceAccountName: coredns
+```
+```
+kubectl exec -it nginx -n kube-system -- bash
+cd /var/run/secrets/kubernetes.io/serviceaccount/
+ls -> ca.crt	namespace  token
+cat token
+jwt.io ->
+    "serviceaccount": {
+      "name": "coredns",
+```
+Плагины аутентификации (модули)
+- Пользовательские сертификаты - если мало пользователей / нужен центр сертификации для отзыва
+- Файлы с токеном - подкладывает api серверам файл с токенами
+- Файл с пользователями/паролями - устарел
+- Service account - для внутренних пользователей - по ключу который генерит куб
+- Authenticating Proxy - аутентификация по заголовкам, которые подставляет прокси
+- OpenID Connect Provider - через внешнего провайдера, который дает access токен
+
+
+Файл с токеном:
+token,user,uid,"group1,group2,group3"
+
+Well you have to pass the path where is static token file located on your host machine in directoy so that you can point to that file just like this. Edit the kubeapiserver.yaml file which is located at /etc/kubernetes/manifests and add the below flag. 
+```
+--token-auth-file=/path/where/yourfile/located/which/contain/tokens
+```
+10
+
+Модули авторизации
+- Node - раздает разрешение kubelet смотреть и писать в api про свою ноду
+- ABAC - устарел
+- RBAC - role based access control - актуальный
+  - subject - пользователи и процессы которыс нужен доступ к api
+  - resources - объекты доступные в кластере
+  - verbs - совокупность операций которые могут быть выполнены над ресурсами
+- Webhook - http вызов к стороннему сервису - для определения прользовательских привелегий
+
+RBAC = subject + resources + verbs
+
+**Role, ClusterRole** - соединяют ресурсы и глаголы, можно использовать для разных пользователей, Role - действуют в пределах одного namespace, ClusterRole - для всего кластера
+
+**RoleBinding и ClusterRoleBinding** - соединяют роли с субъектами (пользователями), RoleBinding в пределах namespaces, ClusterRoleBinding на кластер
+
+Role
+```yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+```
+RoleBinding
+```yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+- kind: User
+  name: user1
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+```
+curl -k -H "Authorization: Bearer user-token" https://ip:6443/api/v1/names
+```
+```yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods-group
+  namespace: default
+subjects:
+- kind: Group
+  name: developers
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+```
+kubectl get clusterrole -A # все роли
+kubectl auth can-i get pods -n default --as user1 # проверяем что может пользователь user1
+```
+```
+sudo kubectl config view # ищем под кем выполняем сейчас команды
+users:
+- name: kubernetes-admin
+
+kubectl get clusterrolebinding cluster-admin -o yaml
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:masters
+
+# добавим токен в kubeconfig
+kubectl config get-contexts # какие контексты есть в kubeconfig
+kubectl config set-context default-pod-reader --cluster=kubernetes-admin@cluster.local --user=user1
+# создаем контекст default-pod-reader связывает кластер с пользователем
+kubectl config set-credentials user1 --token=31ada4fd-adec-460c-809a-9e56ceb75269
+# настроим пользовтеля
+kubectl config use-context default-pod-reader # используем контекст
+проверяем что может пользователь
+```

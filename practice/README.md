@@ -573,7 +573,9 @@ rules:
   resources: ["pods"]
   verbs: ["get", "watch", "list"]
 ```
-RoleBinding
+<details>
+  <summary>RoleBinding User</summary>
+  
 ```yml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -589,9 +591,14 @@ roleRef:
   name: pod-reader
   apiGroup: rbac.authorization.k8s.io
 ```
+</details>
+
 ```
 curl -k -H "Authorization: Bearer user-token" https://ip:6443/api/v1/names
 ```
+<details>
+  <summary>RoleBinding Group</summary>
+  
 ```yml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -607,6 +614,8 @@ roleRef:
   name: pod-reader
   apiGroup: rbac.authorization.k8s.io
 ```
+</details>
+
 ```
 kubectl get clusterrole -A # все роли
 kubectl auth can-i get pods -n default --as user1 # проверяем что может пользователь user1

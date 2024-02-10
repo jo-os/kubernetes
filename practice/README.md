@@ -774,3 +774,139 @@ kubectl get rolebindings -n kube-system
 **Поды на разных хостах**
 
 IP подов должны быть уникальны по всему кластеру (это требование к сети kubernetes). Кубер не пытается настроить сеть между подами сам (много вариантов и систем) - делегирует это плагинам CNI (Container Network Interface). CNI - это стандарт для конфигурирования сети, который используется в kubernetes. Плигин должен иметь методы по спецификации - ADD, DEL, CHECK, VERSION
+
+CNI плагины
+- Flannel
+- Calico
+- Waeve Net
+- Cilium
+
+```
+kubectl get daemonset -A # - смотрим все демонсеты
+kubectl get pods -A -o wide | grep calico # - смотрим все поды по сетям
+```
+Внутри кластера любой под доступен любому другому по сети - это уязвимость закрывается сетевыми политиками - NetworkPolicy
+
+Запретить все подключения
+```yml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: default
+spec:
+  podSelector: {}
+```
+Разрешить подключение к БД
+```yml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-allow
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: database
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: app
+    ports:
+    - port: 5432
+```
+Разрешить подключение из namespace billing
+```yml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ns-default-allow
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: database
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          ns: billing
+    ports:
+    - port: 5432
+```
+
+Kube-proxy - отвечает за перенаправление запросов к соответствующим сервисам в приватной сети кластера.
+- конфигурирует правила сети на узлах
+- обычно использует iptables на воркер нодах
+
+Режимы работы
+- user space - в это режиме kubeproxy пропускает через себя трафик и маршрутизирует на нужные поды (устарел)
+- iptables - kubeproxy настраивает правила на ноде и таким образом перенаправляет и балансирует трафик на поды
+- ipvs - ip virtual server - kubeproxy использует инструмент ядра линукс ipvs
+
+serv.yml
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: my-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+```
+```
+kubectl run nginx1 --image nginx --labels="app=my-app"
+kubectl run nginx2 --image nginx --labels="app=my-app"
+kubectl create -f serv.yml
+kubectl get po -o wide
+kubectl describe service my-service
+```
+Способы опубликовать сервисы наружу
+
+- С помощью kubectl локально
+  - kubectl proxy --port=8080
+  - kubectl port-forward service/my-service 10000:80
+- Сервис NodePort
+- Сервис LoadBalancer
+- Создать ресурс Ingress
+```
+kubectl proxy --port=8080
+kubectl port-forward service/my-service 10000:80
+```
+NodePort - каждая нода кластера открывает порт на своем внешнем интерфейсе и перенаправляет трафик в требуемый сервис - curl [любая нода]:30007
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: NodePort
+  selector:
+    app: my-app
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30007
+```
+LoadBalancer - расширение типа NodePort и используется с облачными провайдерами - внешняя инфраструктура облачного провайдера узнает из api кубернетеса об этом и создает выделенный балансировщик нагрузки, который перенаправляет трафик на порты воркер нод
+
+Нужен внешний ip - когда появится, то сервис сразу его использует
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app: my-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: LoadBalancer
+```

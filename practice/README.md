@@ -753,7 +753,7 @@ kind: Namespace
 metadata:
   name: psa-restricted # - в этом namespace ничего не запустится по безопасности
   labels:
-	pod-security.kubernetes.io/enforce: restricted
+      pod-security.kubernetes.io/enforce: restricted
 ```
 ```
 kubectl get clusterrole
@@ -771,4 +771,6 @@ kubectl get rolebindings -n kube-system
 
 Для того чтобы связывать сетевые namespace в linux есть virtual ethernet device (veth) - он сосотоит из 2х виртуальных интерфейсов которые можно подключить к разным namespace. Получаем трубу между namecpase пода (eth0) и хоста (veth000) - далее взаимодействие подов идет через сетевой мост - и поиск нужного устройства через ARP.
 
+**Поды на разных хостах**
 
+IP подов должны быть уникальны по всему кластеру (это требование к сети kubernetes). Кубер не пытается настроить сеть между подами сам (много вариантов и систем) - делегирует это плагинам CNI (Container Network Interface). CNI - это стандарт для конфигурирования сети, который используется в kubernetes. Плигин должен иметь методы по спецификации - ADD, DEL, CHECK, VERSION

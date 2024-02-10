@@ -493,6 +493,8 @@ spec:
 ```
 kubectl exec -it secret-pod -- printenv
 ```
+## Безопасность
+
 9
 Контроль доступа
 - Аутентификация - кто?
@@ -644,3 +646,129 @@ kubectl config set-credentials user1 --token=31ada4fd-adec-460c-809a-9e56ceb7526
 kubectl config use-context default-pod-reader # используем контекст
 проверяем что может пользователь
 ```
+11
+
+Capabilities
+
+Отнимем у nginx право на выполнение привилегированного действия - слушать до 1024 порты
+```
+docker run --network=host --cap-drop CAP_NET_BIND_SERVICE nginx
+```
+Secutiry Context - настройки которые определяют привилегии и доступы которые будут иметь под и его контейнер
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ecurity-context-demo
+spec:
+  securituContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+  containers:
+  - name: sec-ctx-demo
+    image: busybox
+    commsnd: ["sh","-c","sleep 1h"]
+    SecutiryContext:
+      capabilities:
+      add: ["NET_ADMIN", "SYS_TIME"]
+```
+```yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: pod-creator
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/exec"]
+  verbs: ["get", "watch", "list", "create"]
+```
+```yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: create-pods
+  namespace: default
+subjects:
+- kind: User
+  name: user1
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-creator
+  apiGroup: rbac.authorization.k8s.io
+```
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-hack
+spec:
+  containers:
+  - name: nging
+    image: nginx
+    volumeMounts:
+    - mountPath: /master
+      name: master
+  volumes:
+  - hostPath:
+      path: /
+      type: Directory
+    name: master
+  tolerations: # - игнорируем существует ли taint NoSchedule
+  - effect: NoSchedule
+    operator: Exists
+  nodeSelector: # - хотим запускаться только на мастерах
+    node-role.kubernetes.io/control-plane: ""
+```
+```
+kubectl describe nodes - посмотреть описания и метки подов
+kubectl label nodes snowflake3 disk=hdd - добавить метку
+kubectl run nginx --image=nginx -n default --as=user1
+kubectl create -f hack-pod.yml
+kubectl exec -it nginx-hack -n default -- bash
+копируем содержимое admin.conf из /master/etc/kuberbetes/admin.conf
+kubectl --kubeconfig=config.yml auth can-i "*" "*" - проверяем права с этим файлом - можем все в кластере
+```
+**PodSecutiryPolicy** - проверяет спецификацию пода на соответствие заданным требованиям (устарело)
+
+**Pod Security Policies (PSP)** - в релизе Kubernetes 1.25 политики безопасности подов полностью удалены. Сейчас мы сосредоточимся только на допуске к безопасности пода. PSA включен по умолчанию в Kubernetes 1.23, однако нам нужно будет указать, какие поды должны соответствовать стандартам безопасности. Все, что вам нужно сделать, чтобы включить функцию PSA, — это добавить метку определенного формата в пространство имен. Все поды в этом пространстве имен должны будут следовать заявленным стандартам.
+```
+metadata:
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+```
+Мод может в свою очередь принимать три значения:
+- enforce: Нарушения приведут к отклонению запуска пода,
+- audit: Создание пода будет разрешено. Нарушения будут добавлены в лог аудита,
+- warn: Создание пода будет разрешено. Нарушения будут отображаться на консоли.
+
+Также у нас есть политики безопасности, определяемые уровнем, установленным для PSA:
+- privileged: Полностью неограниченная политика,
+- baseline: Минимально ограничительная политика, которая охватывает важные стандарты,
+- restricted: Жестко ограниченная политика в соответствии с рекомендациями по усилению защиты подов с точки зрения безопасности.
+```yml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: psa-restricted # - в этом namespace ничего не запустится по безопасности
+  labels:
+	pod-security.kubernetes.io/enforce: restricted
+```
+```
+kubectl get clusterrole
+kubectl get rolebindings -n kube-system
+```
+## Сеть
+12
+
+Модель сети Kubernetes:
+- контейнеры внутри пода имеют один общий уникальный адрес
+- поды могут общаться с другими подами исользуя их ip без nat
+- ip который видит контейнер должен быть таким для всех
+
+На поде создается сетевой namespace и контейнера на поде делять его. Перед созданием пода кубер создает сетевой пространсво имен для этого пода и держит его специальным служебным контейнером (является родительским контейнером для всех контейнеров пода) - поэтому все будет жить пока не убить под. Контейнеры используют общий сетевой namespace они можут общаться через localhost напрямую по портам
+
+Для того чтобы связывать сетевые namespace в linux есть virtual ethernet device (veth) - он сосотоит из 2х виртуальных интерфейсов которые можно подключить к разным namespace. Получаем трубу между namecpase пода (eth0) и хоста (veth000) - далее взаимодействие подов идет через сетевой мост - и поиск нужного устройства через ARP.
+
+

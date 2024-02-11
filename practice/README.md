@@ -709,8 +709,8 @@ roleRef:
 ```
 </details>
 
-  <details>
-  <summary>Hack Pod/summary>
+<details>
+<summary>Hack Pod</summary>
     
 ```yml
 apiVersion: v1
@@ -1167,4 +1167,211 @@ spec:
 kubectl exec -it two-containers -c first-container -- bash
  - nginx -T
  - while true; do curl http://localhost:8080;sleep 2; done
+```
+
+Для того чтобы приложениям самим запрашивать хранилище, без взаимодействия со спецификой инфраструктуры ввели:
+- **PV** - постоянное хранилище
+- **PV claim** - заявка на постоянное хранилище
+
+**accessModes**: - монтируем тома с определенными правилами
+- ReadWriteOnce - том может быть смонтирован на чтение и запись только одной нодой
+- ReadOnlyMany - только чтение сразу несколькими нодами
+- ReadWriteMany - чтение и запись несколькими нодами
+- ReadWriteOncePod - чтение и запись одним подом (новый режим)
+
+persistentVolumeReclaimPolicy: - политика определяет что будет с PV после того как он будет использован и использовавший его PVC будет удален
+- Retain - оставить с данными
+- Recycle - удаление данных
+- Delete - будет удален
+
+```yml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: volume-slow
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/volume1"
+```
+```yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-slow
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-pvc
+spec:
+  containers:
+  - image: nginx
+    name: web-server
+    volumeMounts:
+    - mountPath: /cache
+      name: cache-volume
+
+  volumes:
+  - name: cache-volume
+    persistentVolumeClaim:
+      claimName: pvc-slow
+```
+
+**StorageClass** - необходим для автоматического управления томами
+
+- **provisioner** - задает используемый provisioner - то есть способ которым StorageClass будет динамически создавать тома. Для облаяных провайдеров свои - kubernetes.io/aws-ebs, kubernetes.io/gce-pd...
+- **allowVolumeExpansion** - разрешать или нет расширение диска
+- **volumeBindingMode**
+  - Immediate - Volume создается сразу после создания для него подходящей pvc
+  - WaitForFirsCustomer - том не будет создан до того момента, пока не будет создан под его использующий
+ 
+https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/
+
+StorageClass
+```yml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+```
+PersistentVolume
+```yml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: task-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/data"
+```
+PersistentVolumeClaim
+```yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: task-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+```
+Pod
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: task-pv-pod
+spec:
+  volumes:
+    - name: task-pv-storage
+      persistentVolumeClaim:
+        claimName: task-pv-claim
+  containers:
+    - name: task-pv-container
+      image: nginx
+      ports:
+        - containerPort: 80
+          name: "http-server"
+      volumeMounts:
+        - mountPath: "/usr/share/nginx/html"
+          name: task-pv-storage
+```
+
+**Headless service**
+- не имеет IP адреса
+- не выполняет балансировку запросов
+```
+kubectl create deployment nginx --image=nginx --replicas 3
+kubectl get po -o wide
+kubectl expose deployment/nginx --name nginx-normal --port=80 --target-port=80 # обычный
+kubectl expose deployment/nginx --name nginx-headless --port=80 --target-port=80 --cluster-ip="None" # headless
+kubectl run tmp-pod --rm -i --tty --image nicolaka/netshoot -- /bin/bash
+nslookup nginx-normal
+nslookup nginx-headless
+```
+**StatefulSet** - обеспечивает постоянство сетевой идентичности, так как каждой реплике пода присваивается порядковый индекс с отсчетом от 0. Адрес определяется имя пода + headless service.
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: cassandra
+  name: cassandra
+spec:
+  clusterIP: None
+  ports:
+    - port: 9042
+  selector:
+    app: cassandra
+```
+```yml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cassandra
+  labels:
+    app: cassandra
+spec:
+  serviceName: cassandra
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cassandra
+  template:
+    metadata:
+      labels:
+        app: cassandra
+    spec:
+      containers:
+        - name: cassandra
+          image: gcr.io/google-samples/cassandra:v13
+          imagePullPolicy: Always
+          env:
+            - name: MAX_HEAP_SIZE
+              value: 512M
+            - name: HEAP_NEWSIZE
+              value: 100M
+            - name: CASSANDRA_SEEDS
+              value: "cassandra-0.cassandra.default.svc.cluster.local"
+            - name: CASSANDRA_CLUSTER_NAME
+              value: "K8Demo"
+            - name: CASSANDRA_DC
+              value: "DC1-K8Demo"
+            - name: CASSANDRA_RACK
+              value: "Rack1-K8Demo"
+          volumeMounts:
+            - name: cassandra-data
+              mountPath: /cassandra_data
+  volumeClaimTemplates:
+    - metadata:
+        name: cassandra-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
 ```

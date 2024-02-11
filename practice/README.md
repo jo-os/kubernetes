@@ -1375,3 +1375,112 @@ spec:
           requests:
             storage: 1Gi
 ```
+**Vault**
+
+Что не так с секретами:
+- Нет механизма динамического обновления
+- Проблемы с отзывом
+- Нет аудита
+- По умолчанию хранится в открытом виде
+
+Vault:
+- Умеет шифровать данные
+- Может динамически генерировать секреты
+- Имеет удобные политики доступа
+- Есть аудит-логи
+
+Методы аутентификации:
+- userpass
+- token
+- сертификаты
+- kubernetes
+- AWS
+- LDAP
+
+```
+kubectl run vault --image=vault:1.13.3 --env="VAULT_DEV_ROOT_TOKEN_ID=8fb95528-57c6-422e-9722-d2147bcba8aa"
+kubectl expose pod/vault --name vault --port=8200 --target-port=8200
+kubectl port-forward vault 8200:8200 --address='0.0.0.0'
+
+kubectl create serviceaccount vault-auth
+kubectl describe clusterrole system:auth-delegator
+```
+```yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: role-tokenreview-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: vault-auth
+    namespace: default
+```
+```
+export VAULT_ADDR=http://localhost:8200
+vault login
+8fb95528-57c6-422e-9722-d2147bcba8aa
+
+vault kv get secret/myapp/config
+```
+
+https://tutorials.akeyless.io/docs/kubernetes-authentication
+
+Kubernetes auth method
+```
+cat << EOF > akl_gw_token_reviewer.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gateway-token-reviewer
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: role-tokenreview-binding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: gateway-token-reviewer
+  namespace: default 
+EOF
+
+kubectl apply -f akl_gw_token_reviewer.yaml
+
+cat <<EOF > akl_gw_token_reviewer.yaml 
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gateway-token-reviewer-token
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: gateway-token-reviewer
+type: kubernetes.io/service-account-token
+EOF
+
+kubectl apply -f akl_gw_token_reviewer.yaml
+
+SA_JWT_TOKEN=$(kubectl get secret gateway-token-reviewer-token \
+  --output 'go-template={{.data.token | base64decode}}')
+
+CA_CERT=$(kubectl config view --raw --minify --flatten  \
+    --output 'jsonpath={.clusters[].cluster.certificate-authority-data}')
+
+
+vault auth enable kubernetes
+
+vault write auth/kubernetes/config \
+    token_reviewer_jwt="$SA_JWT_TOKEN" \
+    kubernetes_host=https://192.168.99.100:<your TCP port or blank for 443> \
+    kubernetes_ca_cert="$CA_CERT"
+```
+

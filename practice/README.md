@@ -655,6 +655,10 @@ Capabilities
 docker run --network=host --cap-drop CAP_NET_BIND_SERVICE nginx
 ```
 Secutiry Context - настройки которые определяют привилегии и доступы которые будут иметь под и его контейнер
+
+<details>
+  <summary>securityContext</summary>
+  
 ```yml
 apiVersion: v1
 kind: Pod
@@ -672,6 +676,11 @@ spec:
       capabilities:
       add: ["NET_ADMIN", "SYS_TIME"]
 ```
+</details>
+
+<details>
+  <summary>Role+RoleBinding</summary>
+  
 ```yml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -698,6 +707,11 @@ roleRef:
   name: pod-creator
   apiGroup: rbac.authorization.k8s.io
 ```
+</details>
+
+  <details>
+  <summary>Hack Pod/summary>
+    
 ```yml
 apiVersion: v1
 kind: Pod
@@ -721,6 +735,8 @@ spec:
   nodeSelector: # - хотим запускаться только на мастерах
     node-role.kubernetes.io/control-plane: ""
 ```
+</details>
+
 ```
 kubectl describe nodes - посмотреть описания и метки подов
 kubectl label nodes snowflake3 disk=hdd - добавить метку
@@ -797,7 +813,9 @@ metadata:
 spec:
   podSelector: {}
 ```
-Разрешить подключение к БД
+<details>
+  <summary>Разрешить подключение к БД</summary>
+  
 ```yml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -816,7 +834,11 @@ spec:
     ports:
     - port: 5432
 ```
-Разрешить подключение из namespace billing
+</details>
+
+<details>
+  <summary>Разрешить подключение из namespace billing</summary>
+
 ```yml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -835,7 +857,8 @@ spec:
     ports:
     - port: 5432
 ```
-
+</details>
+  
 Kube-proxy - отвечает за перенаправление запросов к соответствующим сервисам в приватной сети кластера.
 - конфигурирует правила сети на узлах
 - обычно использует iptables на воркер нодах
@@ -911,6 +934,10 @@ spec:
   type: LoadBalancer
 ```
 **Ingress** - набор правил внутри кластера, предназначены для того чтобы входящие поключения могли достич сервиса приложений, работает на 7 уровне OSI. Понимает заголовки http запросов. Один Ingress может предоствлять доступ ко множеству служб.
+
+<details>
+  <summary>Ingress</summary>
+  
 ```yml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -931,6 +958,8 @@ spec:
             port:
               number: 80
 ```
+</details>
+  
 spec - правила по которым ingress контроллер будет маршрутизировать трафик. В данном случае - проксировать все входящие запросы, которые приходят на хост hello-world.com на endpoint /svc1 на сервис my-service с портом 80. 
 
 pathType - тип пути (обязательный параметр)
@@ -944,6 +973,9 @@ kubectl expose pod nginx1 --port 80 --target-port 80
 sudo kubectl describe service nginx1
 sudo kubectl create -f ingress.yml
 ```
+<details>
+  <summary>Ingress 2 path</summary>
+  
 ```yml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -972,6 +1004,8 @@ spec:
               port:
                 number: 80
 ```
+</details>
+
 ```
 kubectl describe ingress demo-ingress
 https://coderoad.ru/44110876/%D0%92%D0%BD%D0%B5%D1%88%D0%BD%D0%B8%D0%B9-IP-%D0%B0%D0%B4%D1%80%D0%B5%D1%81-%D1%81%D0%BB%D1%83%D0%B6%D0%B1%D1%8B-Kubernetes-%D0%BE%D0%B6%D0%B8%D0%B4%D0%B0%D0%B5%D1%82%D1%81%D1%8F
@@ -987,6 +1021,150 @@ https://coderoad.ru/44110876/%D0%92%D0%BD%D0%B5%D1%88%D0%BD%D0%B8%D0%B9-IP-%D0%B
 
 ## Хранилище данных в Kubernetes
 
+**Типы volumes**
+- in-tree - плагины разрабатываются и поставляются вместе с бинарниками kubernetes, сразу доступны для использования, без дополнительных установок, они уже протестированы и стабильны
+- csi - container storage interface - разные вендоры могут сами писать плагины, плагины потом устанавляваются в кластер отдельно
 
+**Плагины in-tree**
+- Ephemeral (эфимерные) - жизнь = жизни пода
+  - emptyDir - простой пустой каталог, для хранения временных данных, может сохранять данные как на диске так и в памяти
+  - configMap, secret - для монтирования в под ресурсов кубернетес
+  - downwardApi - можно смонтировать информацию о поде в котором этот контейнер работает
+- Persistent (постоянные) - данные сохраняются независимо от состояния пода
+  - awsElasticBlockStore, azureDisk, gcePersistentDisk - хранение облачных провайдеров
+  - hostPath (монтирование папок из файловой системы ноды) nfs, iscsi, rbd - 
+  - PersistenVolumeClaim - способ использовать заранее созданное администратором или динамически резервируемое постоянное хранилище
+ 
+Сторонние CSI плагины - https://kubernetes-csi.github.io/docs/drivers
 
+ <details>
+  <summary>hostPath + emptyDir</summary>
+   
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+    - name: my-pod
+      image: debian
+      command: ["/bin/sh"]
+      args: ["-c", "sleep 3600"]
+      volumeMounts:
+        - name: slow-persistent-volume
+          mountPath: /mnt/slow-persistent
+        - name: fast-ephemeral-volume
+          mountPath: /mnt/fast-ephemeral
+  volumes:
+    - name: slow-persistent-volume
+      hostPath:
+        path: "/mnt/hostpath"
+    - name: fast-ephemeral-volume
+      emptyDir: {
+        medium: Memory
+      }
+```
+</details>
 
+```
+for dir in /mnt/*;do echo $dir; dd if=/dev/zero of=$dir/test.delete bs=128k count=10000;done
+```
+<details>
+  <summary>Shared data 2 pods</summary>
+  
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: two-containers
+  labels:
+    app: web-server
+spec:
+  restartPolicy: Never
+
+  volumes:
+    - name: shared-data
+      emptyDir: { }
+  
+  containers:
+    - name: first-container
+      image: nginx
+      volumeMounts:
+        - name: shared-data
+          mountPath: /usr/share/nginx/html
+    - name: second-container
+      image: debian
+      volumeMounts:
+        - name: shared-data
+          mountPath: /pod-data
+      command: [ "/bin/sh" ]
+      args: [ "-c", "while true; do date > /pod-data/index.html 2>&1 ;sleep 2;done" ]
+```
+</details>
+
+```
+kubectl exec -it two-containers -c second-container -- bash
+ - tail -f /pod-data/index.html 
+kubectl exec -it two-containers -c first-container -- bash
+ - while true; do curl http://localhost; sleep 2; done
+```
+nginx.conf
+```
+server {
+    listen 8080 default_server;
+    server_name _;
+    root /usr/share/nginx/html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+```
+kubectl create configmap nginx-config --from-file=nginx.conf
+```
+<details>
+  <summary>nginx.conf with ConfigMap</summary>
+  
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: two-containers
+  labels:
+    app: web-server
+spec:
+  restartPolicy: Never
+
+  volumes:
+    - name: shared-data
+      emptyDir: { }
+    - name: nginx-config
+      configMap:
+        name: nginx-config
+  
+  containers:
+    - name: first-container
+      image: nginx
+      volumeMounts:
+        - name: shared-data
+          mountPath: /usr/share/nginx/html
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+    - name: second-container
+      image: debian
+      volumeMounts:
+        - name: shared-data
+          mountPath: /pod-data
+      command: [ "/bin/sh" ]
+      args: [ "-c", "while true; do date > /pod-data/index.html 2>&1 ;sleep 2;done" ]
+```
+</details>
+
+```
+kubectl exec -it two-containers -c first-container -- bash
+ - nginx -T
+ - while true; do curl http://localhost:8080;sleep 2; done
+```

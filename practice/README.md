@@ -878,7 +878,7 @@ kubectl describe service my-service
 kubectl proxy --port=8080
 kubectl port-forward service/my-service 10000:80
 ```
-NodePort - каждая нода кластера открывает порт на своем внешнем интерфейсе и перенаправляет трафик в требуемый сервис - curl [любая нода]:30007
+**NodePort** - каждая нода кластера открывает порт на своем внешнем интерфейсе и перенаправляет трафик в требуемый сервис - curl [любая нода]:30007
 ```yml
 apiVersion: v1
 kind: Service
@@ -893,7 +893,7 @@ spec:
       targetPort: 80
       nodePort: 30007
 ```
-LoadBalancer - расширение типа NodePort и используется с облачными провайдерами - внешняя инфраструктура облачного провайдера узнает из api кубернетеса об этом и создает выделенный балансировщик нагрузки, который перенаправляет трафик на порты воркер нод
+**LoadBalancer** - расширение типа NodePort и используется с облачными провайдерами - внешняя инфраструктура облачного провайдера узнает из api кубернетеса об этом и создает выделенный балансировщик нагрузки, который перенаправляет трафик на порты воркер нод
 
 Нужен внешний ip - когда появится, то сервис сразу его использует
 ```yml
@@ -910,3 +910,83 @@ spec:
       targetPort: 80
   type: LoadBalancer
 ```
+**Ingress** - набор правил внутри кластера, предназначены для того чтобы входящие поключения могли достич сервиса приложений, работает на 7 уровне OSI. Понимает заголовки http запросов. Один Ingress может предоствлять доступ ко множеству служб.
+```yml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-ingress
+  annotations:
+  nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: hello-world.com
+    http:
+      paths:
+      - path: /svc1
+        pathType: Prefix #ImplementatioSpecific | Exact | Prefix
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80
+```
+spec - правила по которым ingress контроллер будет маршрутизировать трафик. В данном случае - проксировать все входящие запросы, которые приходят на хост hello-world.com на endpoint /svc1 на сервис my-service с портом 80. 
+
+pathType - тип пути (обязательный параметр)
+- ImplementatioSpecific - настраиваемый в зависимости от реализации тип
+- Exact - url путь должен точно совпадать
+- Prefix - url путь должен подходить под заданный префикс
+
+```
+kubectl run nginx1 --image=nginx --labels="app=app"
+kubectl expose pod nginx1 --port 80 --target-port 80
+sudo kubectl describe service nginx1
+sudo kubectl create -f ingress.yml
+```
+```yml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: nginx1
+              port:
+                number: 80
+    - http:
+        paths:
+        - path: /apache
+          pathType: Prefix
+          backend:
+            service:
+              name: apache
+              port:
+                number: 80
+```
+```
+kubectl describe ingress demo-ingress
+https://coderoad.ru/44110876/%D0%92%D0%BD%D0%B5%D1%88%D0%BD%D0%B8%D0%B9-IP-%D0%B0%D0%B4%D1%80%D0%B5%D1%81-%D1%81%D0%BB%D1%83%D0%B6%D0%B1%D1%8B-Kubernetes-%D0%BE%D0%B6%D0%B8%D0%B4%D0%B0%D0%B5%D1%82%D1%81%D1%8F
+```
+**Ingress controller** - приложение занимается обработкой трафика, настройка формируется из ingress правил - которые описаны в ingress объектах
+
+**Ingress контроллеры:**
+- Ingress Kubernetes
+- Ingress nginx
+- Traefik
+- HAProxy
+- Kong
+
+## Хранилище данных в Kubernetes
+
+
+
+

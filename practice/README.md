@@ -1184,6 +1184,9 @@ persistentVolumeReclaimPolicy: - политика определяет что б
 - Recycle - удаление данных
 - Delete - будет удален
 
+<details>
+  <summary>PersistenVolume</summary>
+  
 ```yml
 apiVersion: v1
 kind: PersistentVolume
@@ -1197,6 +1200,11 @@ spec:
   hostPath:
     path: "/mnt/volume1"
 ```
+</details>
+
+<details>
+  <summary>PersistenVolumeClaim</summary>
+  
 ```yml
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -1210,6 +1218,11 @@ spec:
     requests:
       storage: 10Gi
 ```
+</details>
+
+<details>
+  <summary>Pod + persistenVolumeClaim</summary>
+  
 ```yml
 apiVersion: v1
 kind: Pod
@@ -1228,6 +1241,7 @@ spec:
     persistentVolumeClaim:
       claimName: pvc-slow
 ```
+</details>
 
 **StorageClass** - необходим для автоматического управления томами
 
@@ -1239,7 +1253,9 @@ spec:
  
 https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/
 
-StorageClass
+<details>
+  <summary>StorageCalss</summary>
+
 ```yml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -1248,7 +1264,11 @@ metadata:
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 ```
-PersistentVolume
+</details>
+
+<details>
+  <summary>PersistenVolume</summary>
+
 ```yml
 apiVersion: v1
 kind: PersistentVolume
@@ -1265,7 +1285,11 @@ spec:
   hostPath:
     path: "/mnt/data"
 ```
-PersistentVolumeClaim
+</details>
+
+<details>
+  <summary>PersistenVolumeClaim</summary>
+  
 ```yml
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -1279,7 +1303,11 @@ spec:
     requests:
       storage: 3Gi
 ```
-Pod
+</details>
+
+<details>
+  <summary>Pod + pvc</summary>
+  
 ```yml
 apiVersion: v1
 kind: Pod
@@ -1300,6 +1328,7 @@ spec:
         - mountPath: "/usr/share/nginx/html"
           name: task-pv-storage
 ```
+</details>
 
 **Headless service**
 - не имеет IP адреса
@@ -1314,6 +1343,10 @@ nslookup nginx-normal
 nslookup nginx-headless
 ```
 **StatefulSet** - обеспечивает постоянство сетевой идентичности, так как каждой реплике пода присваивается порядковый индекс с отсчетом от 0. Адрес определяется имя пода + headless service.
+
+<details>
+  <summary>Service + custerIP none</summary>
+  
 ```yml
 apiVersion: v1
 kind: Service
@@ -1328,6 +1361,11 @@ spec:
   selector:
     app: cassandra
 ```
+</details>
+
+<details>
+  <summary>StatefulSet</summary>
+  
 ```yml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -1375,6 +1413,8 @@ spec:
           requests:
             storage: 1Gi
 ```
+</details>
+  
 **Vault**
 
 Что не так с секретами:
@@ -1431,6 +1471,10 @@ vault kv get secret/myapp/config
 https://tutorials.akeyless.io/docs/kubernetes-authentication
 
 Kubernetes auth method
+
+<details>
+  <summary>Kuber + Vault</summary>
+  
 ```
 cat << EOF > akl_gw_token_reviewer.yaml
 apiVersion: v1
@@ -1483,4 +1527,5 @@ vault write auth/kubernetes/config \
     kubernetes_host=https://192.168.99.100:<your TCP port or blank for 443> \
     kubernetes_ca_cert="$CA_CERT"
 ```
+</details>
 

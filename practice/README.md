@@ -1529,3 +1529,60 @@ vault write auth/kubernetes/config \
 ```
 </details>
 
+## Helm
+Позиционирует себя как пакетный менеджер для кубернетеса.
+
+**Helm 3** (2019)
+- хранение конфигурации в Secrets
+- к Go-шаблонам добавили Lua
+- убрали Tiller
+
+- Умеет рендерить YAML файлы из шаблонов
+- Можно использовать как пакетный менеджер
+- Декларативный
+- Не нужно ставить ничего в кластер дополнительно
+- Поддерживает плагины
+
+```bash
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+```
+```
+helm repo add stable https://charts.helm.sh/stable - добавим репозиторий
+helm repo list - проверим список репозиториев
+helm repo update - обновим
+helm search repo stable - список что есть в репозитории
+```
+Основные объекты Helm
+- Chart - пакет информации необходимый для создания приложения в кластере kubernetes
+- Репозиторий - группа chart'ов опубликованных удаленно
+- Файл с параметрами - информация о настройках и параметрах, которые используются чартом для создания приложений и управления его релизами
+- Релиз - работающий инстанс чарта связанный с определенным файлом с параметрами
+
+Chart
+- charts - помещены зависимости чарта (чарты которые будут установлены с основным)
+- templates - содержит шаблоны из которого будут создаваться манифесты
+- Chart.yml - содержит метаинформацию о чарте (имя, версия, документация...)
+- values.yml - содержит значения для шаблонов
+- licens - лицензии чарта
+- readme - информация для пользователей чарта
+
+Hub репозиториев - artifacthub.io - можно поискать нужные чарты и получить инфо где они
+
+Releases - конкретная конфигурация чарта в кластере - при обновлении или изменении чарта создается новый релиз, что позволяет осуществить rollback
+```
+helm search hub grafana --max-col-width 80
+https://artifacthub.io/packages/helm/grafana/grafana
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+helm show values grafana/grafana --version 7.3.0 > values.yml
+kubectl create ns monitoring
+helm upgrade --install grafana grafana/grafana -f values.yml -n monitoring --version 7.3.0
+kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+export POD_NAME=$(kubectl get pods --namespace monitoring -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=grafana" -o jsonpath="{.items[0].metadata.name}")
+kubectl --namespace monitoring port-forward $POD_NAME 3000 --address='0.0.0.0'
+
+helm history grafana -n monitoring
+helm rollback grafana 1 -n monitoring
+```

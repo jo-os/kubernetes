@@ -1687,3 +1687,39 @@ spec:
 ```
 </details>
 
+## Запросы и лимиты
+```yml
+resources:
+  requests: # ресурсы запрашиваемые контейнером
+    memory: "64Mi"
+    cpu: "250m"
+```
+```yml
+resources:
+  requests: 
+    limits: "128Mi" # лимиты установленные для контейнера
+    cpu: "500m"
+```
+pod.yml
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+spec:
+  containers:
+    - name: nginx
+      image: nginx
+      resources:
+        requests:
+          memory: "50Mi"
+          cpu: "100m"
+        limits:
+          memory: "100Mi"
+          cpu: "500m"
+```
+QoS-классы
+- Best Effort - самый низкий приоритет - без заданых requests, limit 1 на удаление 
+- Burstable - поды с одним контейнером, или под где несколько контейнеров и один с requests но без лимиты requests < limit - 2ые на удаление
+- Guaranteed - requests = limit - контейнер получает запрошенное, но не может получить больше
+

@@ -1586,3 +1586,104 @@ kubectl --namespace monitoring port-forward $POD_NAME 3000 --address='0.0.0.0'
 helm history grafana -n monitoring
 helm rollback grafana 1 -n monitoring
 ```
+```
+sudo helm create billing
+helm template .
+https://artifacthub.io/packages/helm/bitnami/postgresql
+```
+<details>
+  <summary>Helm</summary>
+
+Chart.yml
+```yml
+apiVersion: v2
+name: billing
+description: A Helm chart for my app
+
+type: application
+
+version: 1.0.0
+
+appVersion: "1.0.0"
+
+dependencies:
+  - name: postgresql
+    version: "14.0.3"
+    repository: oci://registry-1.docker.io/bitnamicharts
+```
+values.yml
+```yml
+replicaCount: 1
+
+image:
+  name: jooos/test-server
+  tag: v1.0
+
+envs:
+  - name: DEBUG
+    value: "True"
+  - name: DATABASE_URL
+    value: postgresql://user:password@postgres/db
+
+service:
+  port: 8080
+
+postgresql:
+  global:
+    postgresql:
+      postgresqlDatabase: db
+      postgresqlUsername: user
+      postgresqlPassword: password
+  fullnameOverride: postgres
+```
+deployment.yml
+```yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "billing.fullname" . }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "billing.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "billing.selectorLabels" . | nindent 8 }}
+    spec:
+      initContainers:
+        - name: check-db-ready
+          image: postgres:9.6
+          command: [ 'sh', '-c', 'until pg_isready -h postgres -p 5432;
+          do echo database is not ready; sleep 2 done;']
+      containers:
+        - name: billing
+          image: {{ .Values.image.name }}:{{ .Values.image.tag }}
+          env:
+            {{- with .Values.envs }}
+            {{- toYaml . | nindent 10 }}
+            {{- end }}
+```
+service.yml
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "billing.fullname" . }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "billing.selectorLabels" . | nindent 4 }}
+```
+</details>
+

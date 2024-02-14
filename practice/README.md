@@ -1723,3 +1723,138 @@ QoS-классы
 - Burstable - поды с одним контейнером, или под где несколько контейнеров и один с requests но без лимиты requests < limit - 2ые на удаление
 - Guaranteed - requests = limit - контейнер получает запрошенное, но не может получить больше
 
+**LimitRange** - можно задать возможный диапазон ресурсов
+
+Можно устанавливать:
+- Минимальные и максимальные значения CPU/памяти
+- Минимальные и максимальные дисковые запросы
+- Указывать соотношения между requests и limits
+- Устанавливать значения по умолчанию для requests/limits
+
+```yml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: resource-limits
+spec:
+  limits:
+    - type: Pod
+      max:
+        cpu: "2"
+        memory: 1Gi
+      min:
+        cpu: 200m
+        memory: 6Mi
+    - type: Container
+      max:
+        cpu: "2"
+        memory: 2Gi
+      min:
+        cpu: 100m
+        memory: 4Mi
+      default:
+        cpu: 300m
+        memory: 200Mi
+    - type: PersistentVolumeClaim
+      min:
+        storage: 1Gi
+      max:
+        storage: 10Gi
+```
+**Priority-классы** - показывает важность пода относительно других подов
+```yml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-prioriry
+value: 1000
+```
+```yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-high-priority
+spec:
+  replicas: 20
+  selector:
+    matchLabels:
+      app: nginx-high-priority
+  template:
+    metadata:
+      labels:
+        app: nginx-high-priority
+    spec:
+      priorityClassName: high-priority
+      containers:
+        - name: nginx-high-priority
+          image: nginx
+          resources:
+            requests:
+              memory: "200Mi"
+```
+**ResourceQuota** - Устанавливает ограничение на использование ресурсвом в неймспейсе.
+
+Может ограничивать:
+- общее число объектов определенных типов:
+  - persistenvolumeclaims
+  - secrets
+  - services
+  - configmaps
+  - replicationscontrollers
+  - deployments.apps
+  - replicasets.apps
+  - statefulsets
+  - jobs
+  - pods
+- CPU/memory/storage для всех объектов в неймспейсе
+
+```yml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-resources-with-priority
+spec:
+  hard:
+    pods: "4"
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+```
+Квоты только на поды с классом low-priority
+```yml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-resources
+spec:
+  hard:
+    pods: "4"
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+  scopeSelector:
+    matchExpressions:
+      - operator: In
+        scopeName: PriorityClass
+        values: [ "low-priority" ]
+```
+```
+kubectl describe resourcequotas # посмотреть квоты
+```
+## Автоматическое масштабирование
+- что масштабировать - ноды, поды, запросы ресурсов
+- когда масшатабировать - нужен metrics server (собирает информацию с kubelet)
+
+
+Metrics server (-n kube-system)
+```
+kubectl apply -f https://raw.githubusercontent.com/pythianarora/total-practice/master/sample-kubernetes-code/metrics-server.yaml
+```
+Pod Disruption Budget (PDB) - это минимальное количество реплик приложения  которое кубернетес будет сохранять для работы, что полезно при автомасштабировании нод в кластере
+```
+kubectl drain node7 --ignore-daemonsets # drain - осушать - для вывода ноды из кластера или обновления на ноде компонентов - отключает ноду и на нее ничего не ставится
+
+kubectl create pdb pdbdemo --min-available 2 --selector "app=nginx" # drain не может сразу удалить все поды, пока не запустятя минимум нужных нод
+
+kubectl uncordon node7 - возвращет ноду в строй после drain
+```

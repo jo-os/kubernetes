@@ -1858,3 +1858,45 @@ kubectl create pdb pdbdemo --min-available 2 --selector "app=nginx" # drain не
 
 kubectl uncordon node7 - возвращет ноду в строй после drain
 ```
+
+**Horizontal Pod Autoscaler (HPA)**
+- Стардартные metrics.k8s.io (metrics-server)
+- Метрики от адаптера в кластере custom.metrics.k8s.io (Prometheus Adapter, Microsoft Azure Adapter, Google Stackdriver)
+- Метрики от внешней системы external.metrics.k8s.io (AWS CloudWatch)
+
+```yml
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: server-hpa
+spec:
+  scalaTargetRef: # указываем цель которую будем масштабировать - ReplicaSet, Deployment
+    apiVersion: apps/v1
+    kind: Deployment
+    name: server
+  minReplicas: 2
+  maxReplicas: 10
+  metrics: # на основе какой метрики масштабируемся
+    - type: Resource
+      resource:
+        name: cpu
+        targetAverageValue: 50m
+```
+**Vertical Pod Autoscaling (VPA)**
+- масштабирует вертикально
+- устанавливает ресурсные запросы и лимиты в контейнерах
+- устанавливается в кластер отдельно
+
+```yml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: server-vpa
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    king: Deployment
+    name: server
+  updatePolicy:
+    updateMode: Auto # off, initial, Recreate, Auto
+```

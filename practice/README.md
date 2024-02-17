@@ -1885,7 +1885,7 @@ spec:
 **Vertical Pod Autoscaling (VPA)**
 - масштабирует вертикально
 - устанавливает ресурсные запросы и лимиты в контейнерах
-- устанавливается в кластер отдельно
+- устанавливается в кластер отдельно (ссылка git ниже)
 
 ```yml
 apiVersion: autoscaling.k8s.io/v1
@@ -1893,10 +1893,55 @@ kind: VerticalPodAutoscaler
 metadata:
   name: server-vpa
 spec:
-  targetRef:
+  targetRef: # указываем цель (Deployment, Statefullset, Cronjob, Daemonset)
     apiVersion: apps/v1
     king: Deployment
     name: server
   updatePolicy:
     updateMode: Auto # off, initial, Recreate, Auto
+```
+Режимы работы:
+- off - работа в рекомендательном режиме, рекомендации можно найти в поле статус объекта VPA
+- initial - VPA устанавливает request только при создании пода и не меняет их потом
+- Recreate - VPA устанавливает request при создании и обновляет для существующих подов пересоздавая их
+- Auto - старается обновлять request при перезапуске подов (в бете)
+
+```
+git clone https://github.com/kubernetes/autoscaler.git
+cd /autoscaler/ertical-pod-autoscaler/
+./hack/vpa-up.sh
+```
+**Cluster Autoscaler**
+- создает и удаляет ноды в кластере
+- работает в облаках
+- реализация зависит от конкретного провайдера
+- для продакшена необходим PDB
+
+**Общая схема работы** - через заданный интервал времени (по умолчанию 10 секунд) cluster autoscaling проверяет поды в статусе pending - если такие поды есть, то сервис оценивает реквесты на cpu и памяти этих подов и разварачивает то количество нод которое покроет запросы, если запросы не указаны, то ноды будут добавляться по одной. Для подсчетов cluster autoscaler использует только заданные запросы для подов и не оценивает реальную утилизацию ресурсов.
+
+## Мониторинг
+Что мониторить:
+- Хосты
+- Кластер
+  - Элементы управления
+  - etcd
+  - Деплойменты/поды
+- Приложения
+
+**Типы метрик**
+- counter - счетчик - значения, учеличивающиеся со временим
+- gauge - шкала - значения могут увеличиваться или уменьшаться со временем
+- histogram - гистограмма - хранит информацию об изменении некоторого параметра в течении определенного времени
+- summary - сводка результатов - расширенная гистограмма, которая также позволяет рассчитывать квантили для скользящих временных интервалов
+
+**Prometheus**
+```
+helm search hub prometheus --max-col-width 80
+https://artifacthub.io/packages/helm/prometheus-community/prometheus
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+kubectl create ns monitoring
+helm upgrade --install prometheus prometheus-community/prometheus -n monitoring
+export POD_NAME=$(sudo kubectl get pods --namespace monitoring -l "app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=prometheus" -o jsonpath="{.items[0].metadata.name}")
+kubectl --namespace monitoring port-forward $POD_NAME 9090
 ```

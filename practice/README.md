@@ -1952,9 +1952,10 @@ helm repo update
 kubectl create ns monitoring
 helm upgrade --install prometheus prometheus-community/prometheus -n monitoring
 export POD_NAME=$(sudo kubectl get pods --namespace monitoring -l "app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=prometheus" -o jsonpath="{.items[0].metadata.name}")
-kubectl --namespace monitoring port-forward $POD_NAME 9090
+kubectl --namespace monitoring port-forward $POD_NAME 9090 --address='0.0.0.0'
 ```
-**Конфигурация Prometheus** - в ConfigMap prom-prometheus-server
+
+**Конфигурация Prometheus** - в ConfigMap prometheus-server в установленном namespace
 
 Секции конфиг файлы
 - global - глобальные настройки для всех целей (интервал скрейпинга)
@@ -1976,6 +1977,96 @@ service:
     prometheus.io/port: 8080 # указываем порт по которому будет производиться скрейпинг
 ```
 В общем алгоритм автонахождения целей выглядит так - prometheus читает секции config и jobs согласно которым настраивает свой механизм автообнаружения сервисов. Этот механизм взаимодействует с kubernetes api из которого получает список подходящих целей, на основании этих данных мезанизм автообнаружения обновляет список целей targets - таким образом prometheus сам отслеживает добавление и удаление подов, так как при добавлении и удалении подов kubernetes изменяет endpoints а prometheus это замечает и удаляет/добавляет свои цели.
+```
+kubectl describe service -n kube-system coredns
+```
+```
+Name:              coredns
+Namespace:         kube-system
+Labels:            addonmanager.kubernetes.io/mode=Reconcile
+                   k8s-app=kube-dns
+                   kubernetes.io/name=coredns
+```
+```
+kubectl tmp-pod run --rm -it --image nicolaka/netshoot -n monitoring -- /bin/bash
+curl http://prometheus-prometheus-node-exporter:9100/metrics
+```
+**Alertmanager**
+```
+kubectl edit cm -n monitoring prometheus-server # добавляем алерт
+```
+```
+alerting_rules.yml: |
+groups:
+  - name: prometheus-app
+    rules:
+      - alert: NoPushGateway
+        expr: up{job="promehteus-pushgateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          description: PashGateway is down
+          summary: PashGateway is down
+```
+Slack
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app: prometheus
+    app.kubernetes.io/managed-by: Helm
+    chart: prometheus-15.0.1
+    component: alertmanager
+    heritage: Helm
+    release: prom
+  annotations:
+    meta.helm.sh/release-name: prom
+    meta.helm.sh/release-namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 1m
+      slack_api_url: 'https://hooks.slack.com/services/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'
+    receivers:
+    - name: 'slack-notificaions'
+      slack_configs:
+      - channel: '#notifications'
+        send_resolved: true
+    route:
+      receiver: 'slack-notificaions'
+```
+**Grafana**
+```
+https://artifacthub.io/packages/helm/grafana/grafana
+sudo helm install grafana grafana/grafana -n monitoring --set grafana.persistentVolume.storageClass=nfs-client ## test
+kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+export POD_NAME=$(sudo kubectl get pods --namespace monitoring -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=grafana" -o jsonpath="{.items[0].metadata.name}")
+kubectl --namespace monitoring port-forward $POD_NAME 3000 --address='0.0.0.0'
 
+Prometheus Server URL:   http://prometheus-server
+```
+Prometheus библиотеки официальные есть:
+- Go
+- Java or Scala
+- Python (например prometheus_flask_exporter)
+- Ruby
 
+**Сбор логов в Kubernetes:**
+- Нет истории
+- Теряются при удалении контейнера или ноды
+
+Системы логирования:
+- Управляемый облачный сервис (AWS, Azure, Google)
+- SaaS - сервис мониторинга (DataDog, NewRelic)
+- Свой сервис - ELK, Loki, Graylog
+```
+helm search hub loki-stack --max-col-width 80
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+helm upgrade --install loki grafana/loki-stack -n monitoring
+```
 

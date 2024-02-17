@@ -1945,3 +1945,28 @@ helm upgrade --install prometheus prometheus-community/prometheus -n monitoring
 export POD_NAME=$(sudo kubectl get pods --namespace monitoring -l "app.kubernetes.io/name=prometheus,app.kubernetes.io/instance=prometheus" -o jsonpath="{.items[0].metadata.name}")
 kubectl --namespace monitoring port-forward $POD_NAME 9090
 ```
+**Конфигурация Prometheus** - в ConfigMap prom-prometheus-server
+
+Секции конфиг файлы
+- global - глобальные настройки для всех целей (интервал скрейпинга)
+- rule_files - список директорий где лежат правила, которые необходимо загружать
+- alerting - правило по которому prometheus должен находить алерт менеджер в кластере
+- scrape_configs - настройки поиска целей для мониторинга
+
+Scrape_config - в этой секции указан список scrape заданий, в каждом из которых настраиваются правила нахождения целей для мониторинга (цели можно указывать статически, но есть механизм автонахождения целей)
+
+Вместе с настроенным механизмом автонахождения указваем в описании аннотации.
+
+```yml
+service:
+  type: clusterIP
+  port: 80
+  annotations:
+    prometheus.io/scrape: 'true' # говорит prometheus что нужно влючить эндпоинты этого сервиса в список целей для сбора метрик
+    prometheus.io/path: '/v1/metrics' # переопределяем путь для сбора метрик - если не указан то стандартный путь /metrics
+    prometheus.io/port: 8080 # указываем порт по которому будет производиться скрейпинг
+```
+В общем алгоритм автонахождения целей выглядит так - prometheus читает секции config и jobs согласно которым настраивает свой механизм автообнаружения сервисов. Этот механизм взаимодействует с kubernetes api из которого получает список подходящих целей, на основании этих данных мезанизм автообнаружения обновляет список целей targets - таким образом prometheus сам отслеживает добавление и удаление подов, так как при добавлении и удалении подов kubernetes изменяет endpoints а prometheus это замечает и удаляет/добавляет свои цели.
+
+
+

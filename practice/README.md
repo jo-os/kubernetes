@@ -1934,6 +1934,15 @@ cd /autoscaler/ertical-pod-autoscaler/
 - histogram - гистограмма - хранит информацию об изменении некоторого параметра в течении определенного времени
 - summary - сводка результатов - расширенная гистограмма, которая также позволяет рассчитывать квантили для скользящих временных интервалов
 
+Подготовка (решение проблем с PV)
+- создание nfs сервера - https://creodias.docs.cloudferro.com/en/latest/kubernetes/Create-and-access-NFS-server-from-Kubernetes-on-Creodias.html
+- установка на ноды - sudo apt install nfs-common
+- установка через helm nfs provisioner - https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner
+- запуск prometheus с nfs - https://github.com/prometheus-community/helm-charts/issues/2313
+```
+helm install prometheus prometheus-community/prometheus --set server.persistentVolume.storageClass=nfs-client --set alertmanager.persistentVolume.storageClass=nfs-client
+```
+
 **Prometheus**
 ```
 helm search hub prometheus --max-col-width 80

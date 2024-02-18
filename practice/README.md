@@ -1731,6 +1731,9 @@ QoS-классы
 - Указывать соотношения между requests и limits
 - Устанавливать значения по умолчанию для requests/limits
 
+<details>
+  <summary>LimitRange</summary>
+  
 ```yml
 apiVersion: v1
 kind: LimitRange
@@ -1761,11 +1764,16 @@ spec:
       max:
         storage: 10Gi
 ```
+</details>
+
 ```
 sudo kubectl describe limitrange
 sudo kubectl delete limitrange resource-limits
 ```
 **Priority-классы** - показывает важность пода относительно других подов
+<details>
+  <summary>PriorityClass</summary>
+  
 ```yml
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
@@ -1796,6 +1804,8 @@ spec:
             requests:
               memory: "200Mi"
 ```
+<\details>
+  
 **ResourceQuota** - Устанавливает ограничение на использование ресурсвом в неймспейсе.
 
 Может ограничивать:
@@ -1812,6 +1822,9 @@ spec:
   - pods
 - CPU/memory/storage для всех объектов в неймспейсе
 
+<details>
+  <summary>ResourceQuota</summary>
+  
 ```yml
 apiVersion: v1
 kind: ResourceQuota
@@ -1842,6 +1855,8 @@ spec:
         scopeName: PriorityClass
         values: [ "low-priority" ]
 ```
+</details>
+
 ```
 kubectl describe resourcequotas # посмотреть квоты
 ```
@@ -1868,6 +1883,9 @@ kubectl uncordon node7 - возвращет ноду в строй после dr
 - Метрики от адаптера в кластере custom.metrics.k8s.io (Prometheus Adapter, Microsoft Azure Adapter, Google Stackdriver)
 - Метрики от внешней системы external.metrics.k8s.io (AWS CloudWatch)
 
+<details>
+  <summary>HorizontalPodAutoscaler</summary>
+  
 ```yml
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
@@ -1886,11 +1904,16 @@ spec:
         name: cpu
         targetAverageValue: 50m
 ```
+</details>
+  
 **Vertical Pod Autoscaling (VPA)**
 - масштабирует вертикально
 - устанавливает ресурсные запросы и лимиты в контейнерах
 - устанавливается в кластер отдельно (ссылка git ниже)
 
+<details>
+  <summary>VerticalPodAutoscaler</summary>
+  
 ```yml
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
@@ -1904,6 +1927,8 @@ spec:
   updatePolicy:
     updateMode: Auto # off, initial, Recreate, Auto
 ```
+</details>
+
 Режимы работы:
 - off - работа в рекомендательном режиме, рекомендации можно найти в поле статус объекта VPA
 - initial - VPA устанавливает request только при создании пода и не меняет их потом
@@ -1999,7 +2024,7 @@ curl http://prometheus-prometheus-node-exporter:9100/metrics
 ```
 kubectl edit cm -n monitoring prometheus-server # добавляем алерт
 ```
-```
+```yml
 alerting_rules.yml: |
 groups:
   - name: prometheus-app
@@ -2013,8 +2038,10 @@ groups:
           description: PashGateway is down
           summary: PashGateway is down
 ```
-Slack
-```
+<details>
+  <summary>Slack</summary>
+  
+```yml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -2043,6 +2070,8 @@ data:
     route:
       receiver: 'slack-notificaions'
 ```
+</details>
+
 **Grafana**
 ```
 https://artifacthub.io/packages/helm/grafana/grafana
@@ -2202,6 +2231,10 @@ kubectl get service -n istio-system # смотрим внешний адрес -
 kubectl describe service -n istio-system istio-ingressgateway # смотрим цепочку обработки нашего запроса
 ```
 gw.yml - говорим слушать от всех на 80 порту
+
+<details>
+  <summary>Gateway</summary>
+  
 ```yml
 apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
@@ -2218,6 +2251,8 @@ spec:
     hosts:
     - "*"
 ```
+</details>
+
 ```
 kubectl create -f gw.yml
 получаем на внешнем ip 404 - слушают, но не настроен ответ
@@ -2225,6 +2260,10 @@ kubectl get po -n istio-system
 kubectl logs -n istio-system istio-ingressgateway-54ccd8b799-62m6z # видим 404 - теперь надо перенаправить трафик в сервисы
 ```
 vs_productpage.yml
+
+<details>
+  <summary>VirtualService</summary>
+  
 ```yml
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
@@ -2253,11 +2292,17 @@ spec:
         port:
           number: 9080
 ```
+</details>
+
 ```
 http://192.168.0.50/productpage
 kubectl describe service reviews - видим что запросы идут одинаково на все endponts (v1,v2,v3)
 ```
 dr.yml - определяем labels для подов
+
+<details>
+  <summary>DestinationRule</summary>
+  
 ```yml
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
@@ -2279,7 +2324,13 @@ spec:
     labels:
       version: v3
 ```
+</details>
+
 vs_reviews.yml - направляем все только на v1
+
+<details>
+  <summary>VirtualService v1</summary>
+  
 ```yml
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
@@ -2313,7 +2364,13 @@ spec:
         subset: v3
       weight: 20
 ```
+</details>
+
 По заголовку - end-user: qa-test - перенаправляем все на v3
+
+<details>
+  <summary>VirtualService header</summary>
+  
 ```yml
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
@@ -2336,6 +2393,7 @@ spec:
         host: reviews
         subset: v1
 ```
+</details>
 
 https://istio.io/latest/docs/reference/config/networking/gateway/#ServerTLSSettings-TLSmode
 
@@ -2394,6 +2452,9 @@ Kubernetes Deployment Strategies
 - Canary - запускаем новых подов со старыми, часть трафика идет на новые - если все он то разворачиваем дальше - не в коробе kubernetes, но сожно реализовать через labels - будет неуправляемо так как можем указать только процент трафика, если хотим контролировать, то можно делать через istio и управлять трафиком через заголовки
 - Blue/Green - одновременно работает и старая и новая версия
 
+<details>
+  <summary>Test Deployment</summary>
+  
 ```yml
 ---
 apiVersion: apps/v1
@@ -2426,11 +2487,16 @@ spec:
       port: 8080
       targetPort: 8080
 ```
+</details>
+
 ```
 kubectl run tmp-pod --rm -it --image nicolaka/netshoot -- /bin/bash
 while true; do curl http://server:8080;sleep 2;done
 ```
-Recreate
+
+<details>
+  <summary>Recreate</summary>
+  
 ```yml
 ---
 apiVersion: apps/v1
@@ -2453,7 +2519,11 @@ spec:
         - name: server
           image: jooos/time-server:v2
 ```
-Rolling Update
+</details>
+
+<details>
+  <summary>Rolling Update</summary>
+  
 ```yml
 ---
 apiVersion: apps/v1
@@ -2478,7 +2548,11 @@ spec:
         - name: server
           image: jooos/time-server:v2
 ```
-Canary
+</details>
+
+<details>
+  <summary>Canary</summary>
+  
 ```yml
 ---
 apiVersion: apps/v1
@@ -2525,7 +2599,11 @@ spec:
         - name: server
           image: jooos/time-server:v2
 ```
-Blue Green
+</details>
+
+<details>
+  <summary>Blue Green</summary>
+  
 ```yml
 ---
 apiVersion: apps/v1
@@ -2585,6 +2663,8 @@ spec:
       port: 8080
       targetPort: 8080
 ```
+</details>
+
 **Kubernetes healthcheck**
 
 **Health-проверки**
@@ -2625,12 +2705,16 @@ livenessProbe:
 - timeoutSeconds - default 1s - таймаут запуска
 - failureThreshold - default 3 - количество неудачных ответов прежде чем под будет перезагружен
 - successThreshold - default 1 - количество успешных ответов прежде чем под переходит в состояние готовности
+
+<details>
+  <summary>Liveness</summary>
+  
 ```yml
 apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    test: livenness
+    test: liveness
   name: liveness-exec
 spec:
   containers:
@@ -2648,5 +2732,6 @@ spec:
       initialDelaySeconds: 5
       periodSeconds: 5
 ```
+</details>
 
 

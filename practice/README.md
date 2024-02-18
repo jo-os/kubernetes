@@ -1761,6 +1761,10 @@ spec:
       max:
         storage: 10Gi
 ```
+```
+sudo kubectl describe limitrange
+sudo kubectl delete limitrange resource-limits
+```
 **Priority-классы** - показывает важность пода относительно других подов
 ```yml
 apiVersion: scheduling.k8s.io/v1
@@ -2187,8 +2191,157 @@ Destination Rules - с его помощью можно группировать
 **Практика с демо приложением BookInfo**
 ```
 kubectl label namespace default istio-injection=enabled
-
+kubectl run nginx --image=nginx
+kubectl describe pod nginx
+```
+https://ru.linux-console.net/?p=20192 - MetalLB - как внешний балансировщик для железа (нужен для istio ingress-gateway)
+```
+kubectl apply -f istio-1.0.0/samples/bookinfo/platform/kube/bookinfo.yaml 
+kubectl get po
+kubectl get service -n istio-system # смотрим внешний адрес - не нем нет ответа, так как там не слушают - надо настроить gateway 
+kubectl describe service -n istio-system istio-ingressgateway # смотрим цепочку обработки нашего запроса
+```
+gw.yml - говорим слушать от всех на 80 порту
+```yml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: bookinfo-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+```
+```
+kubectl create -f gw.yml
+получаем на внешнем ip 404 - слушают, но не настроен ответ
+kubectl get po -n istio-system
+kubectl logs -n istio-system istio-ingressgateway-54ccd8b799-62m6z # видим 404 - теперь надо перенаправить трафик в сервисы
+```
+vs_productpage.yml
+```yml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: bookinfo
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - bookinfo-gateway
+  http:
+  - match:
+    - uri:
+        exact: /productpage
+    - uri:
+        prefix: /static
+    - uri:
+        exact: /login
+    - uri:
+        exact: /logout
+    - uri:
+        prefix: /api/v1/products
+    route:
+    - destination:
+        host: productpage
+        port:
+          number: 9080
+```
+```
+http://192.168.0.50/productpage
+kubectl describe service reviews - видим что запросы идут одинаково на все endponts (v1,v2,v3)
+```
+dr.yml - определяем labels для подов
+```yml
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: reviews
+spec:
+  host: reviews
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
+  - name: v3
+    labels:
+      version: v3
+```
+vs_reviews.yml - направляем все только на v1
+```yml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: reviews
+spec:
+  hosts:
+    - reviews
+  http:
+  - route:
+    - destination:
+        host: reviews
+        subset: v1
+```
+```yml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: reviews
+spec:
+  hosts:
+    - reviews
+  http:
+  - route:
+    - destination:
+        host: reviews
+        subset: v1
+      weight: 80
+    - destination:
+        host: reviews
+        subset: v3
+      weight: 20
+```
+По заголовку - end-user: qa-test - перенаправляем все на v3
+```yml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: reviews
+spec:
+  hosts:
+    - reviews
+  http:
+  - match:
+    - headers:
+        end-user:
+          exact: qa-test
+    route:
+    - destination:
+        host: reviews
+        subset: v3
+  - route:
+    - destination:
+        host: reviews
+        subset: v1
 ```
 
+https://istio.io/latest/docs/reference/config/networking/gateway/#ServerTLSSettings-TLSmode
 
-
+ISTIO_MUTUAL - istio организует все сам - включается в DestinationRule
+```
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+```

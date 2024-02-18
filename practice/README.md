@@ -2385,7 +2385,268 @@ kubectl -n istio-system describe service tracing
 kubectl --namespace istio-system port-forward jaeger-7d7d59b9d-mx8jj 16686 --address='0.0.0.0'
 while true; do curl -s http://192.168.0.50/productpage > /dev/null;sleep 1;done
 ```
+## Деплоймент стратегии
+Kubernetes Deployment Strategies
 
+**Стратегии обновления**
+- Rolling update (по умолчанию) - часть запускает - часть убивает
+- Recreate - останавливаем все и запускаем новый
+- Canary - запускаем новых подов со старыми, часть трафика идет на новые - если все он то разворачиваем дальше - не в коробе kubernetes, но сожно реализовать через labels - будет неуправляемо так как можем указать только процент трафика, если хотим контролировать, то можно делать через istio и управлять трафиком через заголовки
+- Blue/Green - одновременно работает и старая и новая версия
 
+```yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: server
+  template:
+    metadata:
+      labels:
+        app: server
+    spec:
+      containers:
+        - name: server
+          image: jooos/time-server:v1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+spec:
+  selector:
+    app: server
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+```
+```
+kubectl run tmp-pod --rm -it --image nicolaka/netshoot -- /bin/bash
+while true; do curl http://server:8080;sleep 2;done
+```
+Recreate
+```yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: server
+  template:
+    metadata:
+      labels:
+        app: server
+    spec:
+      containers:
+        - name: server
+          image: jooos/time-server:v2
+```
+Rolling Update
+```yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+spec:
+  replicas: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: server
+  template:
+    metadata:
+      labels:
+        app: server
+    spec:
+      containers:
+        - name: server
+          image: jooos/time-server:v2
+```
+Canary
+```yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server-v1
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: server
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: server
+        version: v1
+    spec:
+      containers:
+        - name: server
+          image: jooos/time-server:v1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server-v2
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: server
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: server
+        version: v2
+    spec:
+      containers:
+        - name: server
+          image: jooos/time-server:v2
+```
+Blue Green
+```yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server-v1
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: server
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: server
+        version: v1
+    spec:
+      containers:
+        - name: server
+          image: jooos/time-server:v1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server-v2
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: server
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: server
+        version: v2
+    spec:
+      containers:
+        - name: server
+          image: jooos/time-server:v2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+spec:
+  selector:
+    app: server
+    version: v2
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+```
+**Kubernetes healthcheck**
+
+**Health-проверки**
+- Liveness probe - если не проходит проверку то kubelet убивает и перезапускает контейнер
+- Readiness probe - проверяет должен ли под получать запросы - если не проходит пробы то удаляется из enpoint своего сервиса, если опять начинает работать - то добавляется в endoint своего сервиса
+- Startup Probe - реализует первоначальную проверку готовности приложения, чтобы пометить под как готовый к приему трафика, прекращает работу после запуска контейнера
+
+Liveness probe
+- Запуск команды
+```
+livenessProbe:
+exec:
+  command:
+  - cat
+  - /tmp/healthy
+```
+- HTTP запрос
+```
+livenessProbe:
+  httpGet:
+    host:
+    scheme: HTTP
+    path: /healthz
+    port: 8080
+    httpHeaders:
+      - name: Host
+        value: myapplication1.com
+```
+- TCP подключени
+```
+livenessProbe:
+  tcpSocket:
+    port: 8080
+```
+Параметры конфигурации (для всех проверок):
+- initialDelaySeconds - default 0s - период между запуском контейнера и началом проверки
+- periodSeconds - default 10s - интервал между запусками проверок
+- timeoutSeconds - default 1s - таймаут запуска
+- failureThreshold - default 3 - количество неудачных ответов прежде чем под будет перезагружен
+- successThreshold - default 1 - количество успешных ответов прежде чем под переходит в состояние готовности
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    test: livenness
+  name: liveness-exec
+spec:
+  containers:
+  - name: liveness
+    image: k8s.gcr.io/busybox
+    args:
+    - /bin/sh
+    - -c
+    - touch /tmp/healthy; sleep 30; rm -rf /tmp/healthy; sleep 600
+    livenessProbe:
+      exec:
+        cmmand:
+        - cat
+        - /tmp/healthy
+      initialDelaySeconds: 5
+      periodSeconds: 5
+```
 
 

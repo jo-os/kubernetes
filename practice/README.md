@@ -2149,6 +2149,45 @@ https://istio.io/latest/docs/setup/getting-started/
 profiles - https://istio.io/latest/docs/setup/additional-setup/config-profiles/
 ```
 istioctl install --set profile=demo -y
+kubectl get all -n istio-system
+istioctl kube-inject -f pod_nginx.yml > pod_nginx_istio.yml # получаем yml с добавленым istio sidecar
+nsenter -t pid -n iptables -t nat -S - утилита для просмотра правил по pid
+```
+**Istio Custrom Resource**
+
+Istio ingress, egress gateways - 
+- комбинация объектов Service и Deployment
+- Ingress gateway служит получения трафика извне кластера и его роутинга внутри service mesh
+- Egress gateway служит для обработки исходящего трафика
+
+Gateway - для конфигурации ingress gateway
+- конфигурирует istio ingress на 4-6 уронвнях
+- настраивает TLS
+- Открываются порты и настраиваются протоколы
+
+Vortual Service - с его помощью настраиваем маршрутизацию трафика
+- Конфигурирует L7 уровень
+- Настраивает роутинг на конкретные сервисы
+- Можно добавлять - таймауты, ретраи, балансировать трафик по процентам
+
+Destination Rules - с его помощью можно группировать поды по какому то признаку в группы
+- Настривает поведение трафика после выполнения роутинга
+- Группирует версии приложения в сабсеты
+- Добавляет mTLS
+
+**Общая схема работы:**
+- LoadBalancer
+- Istio Service
+- Поды Istio ingress
+- Поды настраиваются с помощью:
+  -  Gateway
+  -  VirtualService
+- Istio Ingress отправляет пакет в приложение
+
+**Практика с демо приложением BookInfo**
+```
+kubectl label namespace default istio-injection=enabled
+
 ```
 
 

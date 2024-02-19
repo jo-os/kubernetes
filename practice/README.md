@@ -538,7 +538,6 @@ jwt.io ->
 - Authenticating Proxy - аутентификация по заголовкам, которые подставляет прокси
 - OpenID Connect Provider - через внешнего провайдера, который дает access токен
 
-
 Файл с токеном:
 token,user,uid,"group1,group2,group3"
 
@@ -1804,7 +1803,7 @@ spec:
             requests:
               memory: "200Mi"
 ```
-<\details>
+</details>
   
 **ResourceQuota** - Устанавливает ограничение на использование ресурсвом в неймспейсе.
 

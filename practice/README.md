@@ -2734,4 +2734,66 @@ spec:
 ```
 </details>
 
+## CI CD
 
+https://gitlab.com/netjoos/kubernetes
+
+Copy app - app.py, Dockerfile, requirements.txt
+
+```yml
+services:
+  - name: docker:dind
+
+stages:
+  - build
+
+build:
+  image: docker:latest
+  stage: build
+  script:
+    - docker build --pull -t server:0.1 -f app/Dockerfile app/
+```
+push to gitlab
+```yml
+services:
+  - name: docker:dind
+
+stages:
+  - build
+
+build:
+  image: docker:latest
+  stage: build
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - IMAGE_NAME=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker build --pull -t $IMAGE_NAME -f app/Dockerfile app/
+    - docker push $IMAGE_NAME
+```
+```
+cat ~/.kube/config | base64 - делаем переменную
+```
+надо создать раннер с yc иначе не взлетает
+```
+deploy:
+  stage: deploy
+  image: dtzar/helm-kubectl
+  before_script:
+    - mkdir ~/.kube/
+    - echo $KUBE_CONFIG | base64 -d > ~/.kube/config
+    - export KUBECONFIG=~/.kube/config
+  script:
+    - kubectl get po
+```
+
+ ## Кластер
+
+ Варианты установки
+ - kubeadm
+ - kubespray
+ - kops
+
+kubeadm:
+- terraform
+- ansible
+- допиливаем руками

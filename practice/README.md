@@ -2796,3 +2796,14 @@ kubeadm:
 - terraform
 - ansible
 - допиливаем руками
+
+```
+kubeadm init --control-plane-endpoint 158.160.85.185 --upload-certs --pod-network-cidr 192.168.10.0/24 | tee -a kubeadm.log
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+
+```

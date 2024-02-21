@@ -1,0 +1,156 @@
+---
+- hosts: control_plane,workers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Create containerd config file
+      file:
+        path: "/etc/modules-load.d/containerd.conf"
+        state: "touch"
+
+    - name: Add conf for containerd
+      blockinfile:
+        path: "/etc/modules-load.d/containerd.conf"
+        block: |
+          overlay
+          br_netfilter
+
+    - name: modprobe
+      shell: |
+        sudo modprobe overlay
+        sudo modprobe br_netfilter
+
+
+    - name: Set system configurations for Kubernetes networking
+      file:
+        path: "/etc/sysctl.d/99-kubernetes-cri.conf"
+        state: "touch"
+
+    - name: Add conf for containerd
+      blockinfile:
+        path: "/etc/sysctl.d/99-kubernetes-cri.conf"
+        block: |
+          net.bridge.bridge-nf-call-iptables = 1
+          net.ipv4.ip_forward = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+
+    - name: Apply new settings
+      command: sudo sysctl --system
+
+    - name: install containerd
+      shell: |
+        sudo apt-get update && sudo apt-get install -y containerd
+        sudo mkdir -p /etc/containerd
+        sudo containerd config default | sudo tee /etc/containerd/config.toml
+        sudo systemctl restart containerd
+
+    - name: Remove swapfile from /etc/fstab
+      mount:
+        name: swap
+        fstype: swap
+        state: absent
+
+    - name: Disable swap
+      command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: install and configure dependencies
+      shell: |
+        sudo apt-get update && sudo apt-get install -y apt-transport-https curl
+        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+    - name: Create kubernetes repo file
+      file:
+        path: "/etc/apt/sources.list.d/kubernetes.list"
+        state: "touch"
+
+    - name: Add K8s Source
+      blockinfile:
+        path: "/etc/apt/sources.list.d/kubernetes.list"
+        block: |
+          deb https://apt.kubernetes.io/ kubernetes-xenial main
+
+    - name: install kubelet
+      apt:
+        name: kubelet=1.23.7-00
+        state: present
+        update_cache: true
+        # allow_downgrade: yes
+        force: yes
+
+    - name: install kubeadm
+      apt:
+        name: kubeadm=1.23.7-00
+        state: present
+        # allow_downgrade: yes
+        force: yes
+
+- hosts: control_plane
+  become: true
+  tasks:
+    - name: install kubectl
+      apt:
+        name: kubectl=1.23.7-00
+        state: present
+        # allow_downgrade: yes
+        force: yes
+
+    - name: install helm
+      shell: |
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+
+- name: Install HAproxy
+  hosts: lb
+  become: true
+  gather_facts: true
+  vars:
+    my_file: /etc/haproxy/haproxy.cfg
+    my_template: templates/haproxy.j2
+  tasks:
+    - name: gather facts from the control_plane
+      tags: [ 'control_plane' ]
+      setup:
+      delegate_to: "{{item}}"
+      delegate_facts: True
+      with_items: "{{groups['control_plane']}}"
+    - name: install haproxy
+      apt:
+        name: haproxy
+        state: present
+        update_cache: true
+        force: yes
+    - name: Stop haproxy service
+      service:
+        name: haproxy
+        state: stopped
+    - name: Create "{{ my_file }}"
+      ansible.builtin.template:
+        src: "{{ my_template }}"
+        dest: "{{ my_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+    - name: start haproxy service
+      service:
+        name: haproxy
+        state: started
+
+- hosts: control1
+  tasks:
+
+  - name: Copy manifests to Master1
+    copy:
+      src: ./step2/kubernetes-manifests.yaml
+      dest: /home/joos/manifests2.yml
+      owner: joos
+      group: joos
+  
+  - name: Copy ingress to Master1
+    copy:
+      src: ./step2/ingress.yml
+      dest: /home/joos/ingress2.yml
+      owner: joos
+      group: joos
